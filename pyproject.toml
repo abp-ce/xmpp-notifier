@@ -1,0 +1,30 @@
+[project]
+name = "xmpp-notifier"
+version = "0.1.0"
+description = ""
+authors = [
+    {name = "Andrei Polyakov",email = "ap120368@gmail.com"}
+]
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "slixmpp (<1.14.0)",
+    "typer (>=0.27.3,<0.28.0)",
+    "pyyaml (>=6.0.3,<7.0.0)",
+]
+
+[tool.poetry]
+packages = [{include = "xmpp_notifier", from = "src"}]
+
+[tool.poetry.scripts]
+xmsg = "xmpp_notifier.main:main"
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[dependency-groups]
+dev = [
+    "black (>=26.10.1,<27.0.0)",
+    "isort (>=9.0.2,<10.0.0)"
+]
