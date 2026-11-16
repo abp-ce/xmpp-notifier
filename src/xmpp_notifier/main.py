@@ -5,14 +5,16 @@ from typing import Annotated
 import slixmpp
 import typer
 import yaml
+from slixmpp.plugins.xep_0363.http_upload import XEP_0363
 
 
 class SendXMPPMsgBot(slixmpp.ClientXMPP):
-    def __init__(self, jid, password, recipient, message):
+    def __init__(self, jid, password, recipient, message, file_path):
         slixmpp.ClientXMPP.__init__(self, jid, password)
 
         self.recipient = recipient
         self.msg = message
+        self.file_path = file_path
 
         self.add_event_handler("session_start", self.start)
 
@@ -20,18 +22,30 @@ class SendXMPPMsgBot(slixmpp.ClientXMPP):
         self.send_presence()
         await self.get_roster()
 
-        self.send_message(mto=self.recipient, mbody=self.msg, mtype="chat")
+        if self.msg:
+            self.send_message(mto=self.recipient, mbody=self.msg, mtype="chat")
+
+        if self.file_path is not None and self.file_path.exists():
+            plugin = self.get('xep_0363')
+            if isinstance(plugin, XEP_0363):
+                url = await plugin.upload_file(self.file_path)
+                msg = self.make_message(mto=self.recipient, mbody=url, mtype="chat")
+                msg["oob"]["url"] = url
+                msg.send()
+
 
         await self.disconnect()
 
 
-def send_message_to_xmpp(xmpp_bot, xmpp_pass, xmpp_recepient, message):
+def send_message_to_xmpp(xmpp_bot, xmpp_pass, xmpp_recepient, message, file_path):
 
     async def send_message_to_xmpp_async():
 
-        xmpp = SendXMPPMsgBot(xmpp_bot, xmpp_pass, xmpp_recepient, message)
+        xmpp = SendXMPPMsgBot(xmpp_bot, xmpp_pass, xmpp_recepient, message, file_path)
         xmpp.register_plugin("xep_0030")
         xmpp.register_plugin("xep_0199")
+        xmpp.register_plugin("xep_0363")
+        xmpp.register_plugin("xep_0066")  # Out-of-Band Data
 
         await xmpp.connect()
 
@@ -94,7 +108,15 @@ def create_app(config: dict) -> typer.Typer:
                 help=base_help,
             ),
         ],
-        text: Annotated[str, typer.Argument(help="Текст сообщения")],
+        text: Annotated[str | None, typer.Argument(help="Текст сообщения")] = None,
+        file_path: Annotated[
+            Path | None,
+            typer.Option(
+                '--file',
+                '-f',
+                help="Путь к загружаемому файлу, если есть",
+            ),
+        ] = None,
         profile: Annotated[
             str | None,
             typer.Option(
@@ -120,7 +142,7 @@ def create_app(config: dict) -> typer.Typer:
 
         message = text
         try:
-            send_message_to_xmpp(xmpp_bot, xmpp_pass, xmpp_recepient, message)
+            send_message_to_xmpp(xmpp_bot, xmpp_pass, xmpp_recepient, message, file_path)
             typer.secho("🚀 Отправлено!", fg=typer.colors.GREEN)
         except Exception as e:
             typer.secho(f"❌ Ошибка: {e}", fg=typer.colors.RED, err=True)
@@ -131,6 +153,7 @@ def create_app(config: dict) -> typer.Typer:
 
 # --- 📝 ДЛЯ ГЕНЕРАЦИИ ДОКУМЕНТАЦИИ (Скрытый холостой инстанс) ---
 # Генератор typer-cli увидит этот объект 'app' на уровне модуля
+# Команда: typer xmpp_notifier.main utils docs --output README.md --name xmsg
 # _docs_config = {"senders": {"default": {}}, "recipients": {}}
 # app = create_app(_docs_config)
 
